@@ -1,33 +1,29 @@
-# Load datasets
-
-import os
-
-dataset_dir = '/content/drive/MyDrive/face features_88' # change to your dataset directory
-image_paths = [os.path.join(dataset_dir, fname) for fname in os.listdir(dataset_dir) if fname.endswith('.jpg')]
-
-# Extract ROI of face segment by YOLO(face detection) and OpenCV(ROI)
-
-import cv2
-import torch
-from ultralytics.yolov8 import YOLOv8
-import pandas as pd
-
 data = []
 
 def extract_landmarks(image):
+    # Load the image
+    image = cv2.imread(image_path)
+
+    # Convert the image to RGB format
     rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+    # Process the image with MediaPipe Face Mesh
     result = face_mesh.process(rgb_image)
+
+    # Extract landmarks if faces are detected
     if result.multi_face_landmarks:
         landmarks = result.multi_face_landmarks[0]
         return [(lm.x, lm.y, lm.z) for lm in landmarks.landmark]
+
     return None
 
 def calculate_similarity(landmarks1, landmarks2):
     return distance.euclidean(np.array(landmarks1), np.array(landmarks2))
 
-
 # ------
-model = YOLOv8()
+# model = YOLOv8()
+# model = YOLO("yolov8n.pt")
+#model = YOLO("yolov8m.pt")
 mp_face_mesh = mp.solutions.face_mesh
 face_mesh = mp_face_mesh.FaceMesh(static_image_mode=True, max_num_faces=1, min_detection_confidence=0.5)
 
@@ -43,33 +39,58 @@ for path in image_paths:
     image = cv2.imread(path) # load image
     results = model(image) # detect face using Yolo
 
-    detections = results.pandas().xyxy[0]
+    # Check if results is a list, if so, convert it to a Results object
+    #if isinstance(results, list):
+    #  results = Results(results, None)
+
+   # detections = results.pd().xyxy[0]
+   # detections = results[0].xyxy
+    if isinstance(results, list):
+      detections = results[0].boxes.xyxy
+    else:
+      detections = results.boxes.xyxy
+
     print(detections)
 
-    for index, row in detections.iterrows():
-        if row['name'] in ['face', 'eye', 'nose', 'mouth']:
-            x1, y1, x2, y2 = int(row['xmin']), int(row['ymin']), int(row['xmax']), int(row['ymax'])
-            roi = image[y1:y2, x1:x2] # extract ROI of detected face using OpenCV
-            cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2) # draw bounding box
+    # for index, row in detections.iterrows():
+    #     if row['name'] in ['face', 'eye', 'nose', 'mouth']:
+    #         x1, y1, x2, y2 = int(row['xmin']), int(row['ymin']), int(row['xmax']), int(row['ymax'])
+    #         roi = image[y1:y2, x1:x2] # extract ROI of detected face using OpenCV
+    #         cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2) # draw bounding box
 
-        if row['name'] == 'face':
-            x1, y1, x2, y2 = int(row['xmin']), int(row['ymin']), int(row['xmax']), int(row['ymax'])
-            face_roi = image[y1:y2, x1:x2]
-            face_landmarks = extract_landmarks(face_roi)
-        elif row['name'] in ['eye', 'nose', 'mouth']:
-            x1, y1, x2, y2 = int(row['xmin']), int(row['ymin']), int(row['xmax']), int(row['ymax'])
-            feature_roi = image[y1:y2, x1:x2]
-            feature_landmarks = extract_landmarks(feature_roi)
+    #     if row['name'] == 'face':
+    #         x1, y1, x2, y2 = int(row['xmin']), int(row['ymin']), int(row['xmax']), int(row['ymax'])
+    #         face_roi = image[y1:y2, x1:x2]
+    #         face_landmarks = extract_landmarks(face_roi)
+    #     elif row['name'] in ['eye', 'nose', 'mouth']:
+    #         x1, y1, x2, y2 = int(row['xmin']), int(row['ymin']), int(row['xmax']), int(row['ymax'])
+    #         feature_roi = image[y1:y2, x1:x2]
+    #         feature_landmarks = extract_landmarks(feature_roi)
+    for index in range(detections.shape[0]):
+      row = detections[index]
+      class_index = int(row[-1])  # Access the correct class index from the tensor
+      if class_index < len(model.names) and model.names[class_index] in ['face', 'eye', 'nose', 'mouth']: # Check if class index is valid
+          x1, y1, x2, y2 = int(row[0]), int(row[1]), int(row[2]), int(row[3])
+          roi = image[y1:y2, x1:x2]  # extract ROI of detected face using OpenCV
+          cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)  # draw bounding box
 
-    cv2.imshow("Detected Faces and Features", image)
+      if class_index < len(model.names) and model.names[class_index] == 'face': # Check if class index is valid
+          x1, y1, x2, y2 = int(row[0]), int(row[1]), int(row[2]), int(row[3])
+          face_roi = image[y1:y2, x1:x2]
+          face_landmarks = extract_landmarks(face_roi)
+      elif class_index < len(model.names) and model.names[class_index] in ['eye', 'nose', 'mouth']: # Check if class index is valid
+          x1, y1, x2, y2 = int(row[0]), int(row[1]), int(row[2]), int(row[3])
+          feature_roi = image[y1:y2, x1:x2]
+          feature_landmarks = extract_landmarks(feature_roi)
+
+    #################
+
+    from google.colab.patches import cv2_imshow
+
+    cv2_imshow(image)
     cv2.waitKey(0)
 
 cv2.destroyAllWindows()
-
-
-# Extract landmark from specific face segment, by Mediapipe Face Mesh.
-
-import mediapipe as mp
 
 def extract_landmarks(image):
     rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -81,7 +102,7 @@ def extract_landmarks(image):
 
 
 # extract landmarks from ROI
-for i in range(image_paths.len())
+for i in range(image_paths.len()):
     for index, row in detections.iterrows():
         if row['name'] == 'face':
             x1, y1, x2, y2 = int(row['xmin']), int(row['ymin']), int(row['xmax']), int(row['ymax'])
@@ -107,9 +128,10 @@ def calculate_similarity(landmarks1, landmarks2):
     return distance.euclidean(np.array(landmarks1), np.array(landmarks2))
 
 def makePairs():
-    i=0, j=1
-    for i in range(image_paths.len())
-        for j in range(image_paths.len() - 1)
+    i=0
+    j=1
+    for i in range(image_paths.len()):
+        for j in range(image_paths.len() - 1):
             image_pairs[i][0] = image_paths[i]
 
 
