@@ -1,17 +1,17 @@
-# Load datasets
-
 import os
+import cv2
+import torch
+from ultralytics import YOLO
+import mediapipe as mp
+import numpy as np
+import pandas as pd
 
-dataset_dir = '/content/drive/MyDrive/face features_88' # change to your dataset directory
+
+# Load datasets
+dataset_dir = 'face features_88' # change to your dataset directory
 image_paths = [os.path.join(dataset_dir, fname) for fname in os.listdir(dataset_dir) if fname.endswith('.jpg')]
 
 # Extract ROI of face segment by YOLO(face detection) and OpenCV(ROI)
-
-import cv2
-import torch
-from ultralytics.yolov8 import YOLOv8
-import pandas as pd
-
 data = []
 
 def extract_landmarks(image):
@@ -27,12 +27,12 @@ def calculate_similarity(landmarks1, landmarks2):
 
 
 # ------
-model = YOLOv8()
+model = YOLO("yolov8n.pt")
 mp_face_mesh = mp.solutions.face_mesh
 face_mesh = mp_face_mesh.FaceMesh(static_image_mode=True, max_num_faces=1, min_detection_confidence=0.5)
 
 for image_path in image_paths:
-    landmarks = extract_landmarks(image_path)
+    landmarks = extract_landmarks(cv2.imread(image_path))
     if landmarks:
         data.append({
             'image_path': image_path,
@@ -42,9 +42,13 @@ for image_path in image_paths:
 for path in image_paths:
     image = cv2.imread(path) # load image
     results = model(image) # detect face using Yolo
+    boxes = results[0].boxes
 
-    detections = results.pandas().xyxy[0]
+    detections = boxes.xyxy[0]
     print(detections)
+
+    detections = pd.DataFrame(detections, columns=['xmin', 'ymin', 'xmax', 'ymax', 'confidence', 'class'])
+    print("Detections: ", detections)
 
     for index, row in detections.iterrows():
         if row['name'] in ['face', 'eye', 'nose', 'mouth']:
@@ -66,7 +70,7 @@ for path in image_paths:
 
 cv2.destroyAllWindows()
 
-
+"""
 # Extract landmark from specific face segment, by Mediapipe Face Mesh.
 
 import mediapipe as mp
@@ -143,3 +147,4 @@ df = pd.DataFrame(data)
 
 # 데이터셋 저장
 df.to_csv('similarity_dataset.csv', index=False)
+"""
