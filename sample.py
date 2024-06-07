@@ -1,3 +1,20 @@
+# Load datasets
+
+import os
+
+#dataset_dir = '/content/drive/MyDrive/IoT/FACEDataset/YOLODataset/dataset.yaml' # change to your dataset directory
+dataset_dir = '/content/drive/MyDrive/IoT/Image Face'
+image_paths = [os.path.join(dataset_dir, fname) for fname in os.listdir(dataset_dir) if fname.endswith('.jpg')]
+
+# Extract landmark from specific face segment, by Mediapipe Face Mesh.
+!pip install mediapipe -q # to type in terminal or delete
+import mediapipe as mp
+!pip install ultralytics -q # to type in terminal or delete
+from ultralytics import YOLO
+model = YOLO("yolov8n.pt")
+import cv2
+import torch
+
 data = []
 
 def extract_landmarks(image):
