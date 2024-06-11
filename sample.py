@@ -7,13 +7,15 @@ dataset_dir = '/content/drive/MyDrive/IoT/Image Face'
 image_paths = [os.path.join(dataset_dir, fname) for fname in os.listdir(dataset_dir) if fname.endswith('.jpg')]
 
 # Extract landmark from specific face segment, by Mediapipe Face Mesh.
-!pip install mediapipe -q # to type in terminal or delete
+# !pip install mediapipe -q
 import mediapipe as mp
-!pip install ultralytics -q # to type in terminal or delete
+# !pip install ultralytics -q
 from ultralytics import YOLO
-model = YOLO("yolov8n.pt")
 import cv2
 import torch
+import pandas as pd
+
+model = YOLO("yolov8s.pt")
 
 data = []
 
@@ -119,18 +121,32 @@ def extract_landmarks(image):
 
 
 # extract landmarks from ROI
-for i in range(image_paths.len()):
-    for index, row in detections.iterrows():
-        if row['name'] == 'face':
-            x1, y1, x2, y2 = int(row['xmin']), int(row['ymin']), int(row['xmax']), int(row['ymax'])
+# for i in range(image_paths.len()):
+#     for index, row in detections.iterrows():
+#         if row['name'] == 'face':
+#             x1, y1, x2, y2 = int(row['xmin']), int(row['ymin']), int(row['xmax']), int(row['ymax'])
+#             face_roi = image[y1:y2, x1:x2]
+#             face_landmarks = extract_landmarks(face_roi)
+#         elif row['name'] in ['eye', 'nose', 'mouth']:
+#             x1, y1, x2, y2 = int(row['xmin']), int(row['ymin']), int(row['xmax']), int(row['ymax'])
+#             feature_roi = image[y1:y2, x1:x2]
+#             feature_landmarks = extract_landmarks(feature_roi)
+
+# extract landmarks from ROI
+for i in range(len(image_paths)):
+    for index in range(detections.shape[0]):
+        row = detections[index]
+        class_index = int(row[-1])
+        if class_index < len(model.names) and model.names[class_index] == 'face':
+            x1, y1, x2, y2 = int(row[0]), int(row[1]), int(row[2]), int(row[3])
             face_roi = image[y1:y2, x1:x2]
             face_landmarks = extract_landmarks(face_roi)
-        elif row['name'] in ['eye', 'nose', 'mouth']:
-            x1, y1, x2, y2 = int(row['xmin']), int(row['ymin']), int(row['xmax']), int(row['ymax'])
+        elif class_index < len(model.names) and model.names[class_index] in ['eye', 'nose', 'mouth']:
+            x1, y1, x2, y2 = int(row[0]), int(row[1]), int(row[2]), int(row[3])
             feature_roi = image[y1:y2, x1:x2]
             feature_landmarks = extract_landmarks(feature_roi)
 
-# Normalizae landmarks.
+# Normalize landmarks.
 
 import numpy as np
 from scipy.spatial import distance
@@ -142,41 +158,58 @@ def normalize_landmarks(landmarks):
     return landmarks
 
 def calculate_similarity(landmarks1, landmarks2):
-    return distance.euclidean(np.array(landmarks1), np.array(landmarks2))
+    distances = [distance.euclidean(lm1, lm2) for lm1, lm2 in zip(landmarks1, landmarks2)]
+    return np.mean(distances)
+    # return distance.euclidean(np.array(landmarks1), np.array(landmarks2))
 
 def makePairs():
+    image_pairs = []
     i=0
     j=1
-    for i in range(image_paths.len()):
-        for j in range(image_paths.len() - 1):
-            image_pairs[i][0] = image_paths[i]
+    for i in range(len(image_paths)):
+        for j in range(i + 1, len(image_paths)):
+            image_pairs.append((image_paths[i], image_paths[j]))
+    return image_pairs
 
+def select_landmarks(landmarks, indexes):
+    return [landmarks[i] for i in indexes]
 
-image_pairs = [][2]
+image_pairs = makePairs()
+
+# Define the landmark indexes for different facial features
+LEFT_EYE_INDEXES = [33, 133, 160, 159, 158, 144, 145, 153]
+RIGHT_EYE_INDEXES = [362, 263, 387, 386, 385, 373, 374, 380]
+NOSE_INDEXES = [1, 2, 98, 327]
+MOUTH_INDEXES = [61, 291, 78, 308, 81, 312, 13, 14]
+JAW_INDEXES = [10, 109, 67, 103, 54, 21, 162, 127, 234, 93]
 
 # 이미지 쌍에 대한 유사도 점수 계산
-for img1_path, img2_path in pairs:
-    landmarks1 = extract_landmarks(img1_path)
-    landmarks2 = extract_landmarks(img2_path)
-    if landmarks1 and landmarks2:
-        left_eye_sim = calculate_similarity(select_landmarks(landmarks1, LEFT_EYE_INDEXES), select_landmarks(landmarks2, LEFT_EYE_INDEXES))
-        right_eye_sim = calculate_similarity(select_landmarks(landmarks1, RIGHT_EYE_INDEXES), select_landmarks(landmarks2, RIGHT_EYE_INDEXES))
-        nose_sim = calculate_similarity(select_landmarks(landmarks1, NOSE_INDEXES), select_landmarks(landmarks2, NOSE_INDEXES))
-        mouth_sim = calculate_similarity(select_landmarks(landmarks1, MOUTH_INDEXES), select_landmarks(landmarks2, MOUTH_INDEXES))
-        jaw_sim = calculate_similarity(select_landmarks(landmarks1, JAW_INDEXES), select_landmarks(landmarks2, JAW_INDEXES))
-        eye_nose_sim = calculate_eye_nose_distance(landmarks1, landmarks2)
-        nose_mouth_sim = calculate_nose_mouth_distance(landmarks1, landmarks2)
+for img1_path, img2_path in image_pairs:
+  # Load the actual image data
+  img1 = cv2.imread(img1_path)
+  img2 = cv2.imread(img2_path)
 
-        data.append({
-            'left_eye_sim': left_eye_sim,
-            'right_eye_sim': right_eye_sim,
-            'nose_sim': nose_sim,
-            'mouth_sim': mouth_sim,
-            'jaw_sim': jaw_sim,
-            'eye_nose_sim': eye_nose_sim,
-            'nose_mouth_sim': nose_mouth_sim,
-            'label': label  # 유사도의 레이블 (예: 0: 비슷하지 않음, 1: 비슷함)
-        })
+  landmarks1 = extract_landmarks(img1)
+  landmarks2 = extract_landmarks(img2)
+  if landmarks1 and landmarks2:
+      left_eye_sim = calculate_similarity(select_landmarks(landmarks1, LEFT_EYE_INDEXES), select_landmarks(landmarks2, LEFT_EYE_INDEXES))
+      right_eye_sim = calculate_similarity(select_landmarks(landmarks1, RIGHT_EYE_INDEXES), select_landmarks(landmarks2, RIGHT_EYE_INDEXES))
+      nose_sim = calculate_similarity(select_landmarks(landmarks1, NOSE_INDEXES), select_landmarks(landmarks2, NOSE_INDEXES))
+      mouth_sim = calculate_similarity(select_landmarks(landmarks1, MOUTH_INDEXES), select_landmarks(landmarks2, MOUTH_INDEXES))
+      jaw_sim = calculate_similarity(select_landmarks(landmarks1, JAW_INDEXES), select_landmarks(landmarks2, JAW_INDEXES))
+      #eye_nose_sim = calculate_eye_nose_distance(landmarks1, landmarks2)
+      #nose_mouth_sim = calculate_nose_mouth_distance(landmarks1, landmarks2)
+
+      data.append({
+          'left_eye_sim': left_eye_sim,
+          'right_eye_sim': right_eye_sim,
+          'nose_sim': nose_sim,
+          'mouth_sim': mouth_sim,
+          'jaw_sim': jaw_sim,
+          #'eye_nose_sim': eye_nose_sim,
+          #'nose_mouth_sim': nose_mouth_sim,
+          #'label': label  # 유사도의 레이블 (예: 0: 비슷하지 않음, 1: 비슷함)
+      })
 
 df = pd.DataFrame(data)
 
