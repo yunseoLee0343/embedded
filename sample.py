@@ -211,6 +211,10 @@ for img1_path, img2_path in image_pairs:
           #'label': label  # 유사도의 레이블 (예: 0: 비슷하지 않음, 1: 비슷함)
       })
 
+      total_sim = (left_eye_sim + right_eye_sim + nose_sim + mouth_sim + jaw_sim) / 5
+
+      data.append({'total similarity': total_sim})
+
 df = pd.DataFrame(data)
 
 # 데이터셋 저장
