@@ -12,19 +12,19 @@ from scipy.spatial.distance import euclidean, cosine
 
 app = Flask(__name__)
 
-# 설정된 경로
+# Set dataset directory
 dataset_dir = 'face_features_88'
 image_paths = [os.path.join(dataset_dir, fname) for fname in os.listdir(dataset_dir) if fname.endswith('.jpg')]
 
-# 모델 로드
+# Load models
 model = YOLO("yolov8s.pt")
 embedder = FaceNet()
 
-# 임시 이미지 경로
+# Temporary image paths
 temp_paths = image_paths[:2]
 
 
-# 얼굴 탐지 함수
+# Face detection function using YOLO
 def detect_faces_yolo(model, image):
     results = model(image)
     if isinstance(results, list):
@@ -34,7 +34,7 @@ def detect_faces_yolo(model, image):
     return detections
 
 
-# 이미지 전처리 함수
+# Image preprocessing function
 def preprocess_image(image):
     image = Image.open(io.BytesIO(image))
     image = image.convert('RGB')
@@ -50,7 +50,7 @@ def detect_faces():
     image = request.files['image'].read()
     image = preprocess_image(image)
 
-    # 얼굴 탐지
+    # Face detection
     detections = detect_faces_yolo(model, image)
     detections = detections.numpy().tolist()
 
@@ -63,30 +63,30 @@ def process_images():
     detected_faces_info = []
 
     for path in temp_paths:
-        image = cv2.imread(path)  # 이미지 로드
-        detections = detect_faces_yolo(model, image)  # Yolo를 사용하여 얼굴 감지
+        image = cv2.imread(path)  # Load image
+        detections = detect_faces_yolo(model, image)  # Detect faces using YOLO
         detections = detections.numpy().tolist()
 
-        # 바운딩 박스 그리기 및 임베딩 추출
+        # Draw bounding boxes and extract embeddings
         for detection in detections:
-            x1, y1, x2, y2 = map(int, detection[:4])  # 좌표를 정수로 변환
-            face = image[y1:y2, x1:x2]  # 얼굴 영역 추출
+            x1, y1, x2, y2 = map(int, detection[:4])  # Convert coordinates to integers
+            face = image[y1:y2, x1:x2]  # Extract face region
 
-            # FaceNet 모델을 사용하여 얼굴 임베딩 추출
-            embedding = embedder.extract(face, threshold=0.95)  # 얼굴 영역만을 입력으로 사용
-            embeddings.append(embedding[0]['embedding'])  # 임베딩 벡터 저장
+            # Extract face embeddings using FaceNet
+            embedding = embedder.extract(face, threshold=0.95)  # Use only the face region as input
+            embeddings.append(embedding[0]['embedding'])  # Store embedding vector
             detected_faces_info.append({
                 'detection': detection,
                 'embedding': embedding[0]['embedding'].tolist()
             })
 
-            # 이미지에 바운딩 박스 그리기
-            cv2.rectangle(image, (x1, y1), (x2, y2), (255, 0, 0), 2)  # 빨간색 박스
+            # Draw bounding box on the image
+            cv2.rectangle(image, (x1, y1), (x2, y2), (255, 0, 0), 2)  # Red box
 
-        # 감지된 바운딩 박스 출력
+        # Output detected bounding boxes
         print(detections)
 
-    # 두 이미지의 임베딩 벡터 출력 및 유사도 계산
+    # Output embedding vectors and calculate similarity between two images
     if len(embeddings) >= 2:
         embedding1, embedding2 = embeddings[:2]
         euclidean_distance = calculate_similarity(embedding1, embedding2, metric='euclidean')
@@ -115,14 +115,14 @@ def show_images():
     return jsonify({"images": images})
 
 
-# 유사도 계산 함수
+# Similarity calculation function
 def calculate_similarity(embedding1, embedding2, metric='euclidean'):
     if metric == 'euclidean':
         return euclidean(embedding1, embedding2)
     elif metric == 'cosine':
         return cosine(embedding1, embedding2)
     else:
-        raise ValueError("지원하지 않는 유사도 측정 방식입니다. 'euclidean' 또는 'cosine'을 사용하세요.")
+        raise ValueError("Unsupported similarity metric. Use 'euclidean' or 'cosine'.")
 
 
 if __name__ == '__main__':
