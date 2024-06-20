@@ -5,18 +5,22 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 
-void main() => runApp(MyApp());
+void main() => runApp(const MyApp());
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return const MaterialApp(
       home: MyHomePage(),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
+  const MyHomePage({super.key});
+
   @override
   _MyHomePageState createState() => _MyHomePageState();
 }
@@ -90,7 +94,7 @@ class _MyHomePageState extends State<MyHomePage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Similarity Result'),
+          title: const Text('Similarity Result'),
           content: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -98,7 +102,7 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
           actions: <Widget>[
             TextButton(
-              child: Text('OK'),
+              child: const Text('OK'),
               onPressed: () {
                 Navigator.of(context).pop();
               },
@@ -121,30 +125,32 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Image Similarity Calculation'),
+        title: const Text('Image Similarity Calculation'),
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            _image1 == null
-                ? Text('No image selected for Image 1.')
-                : Image.file(_image1!),
-            SizedBox(height: 20),
-            _image2 == null
-                ? Text('No image selected for Image 2.')
-                : Image.file(_image2!),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _uploadImages,
-              child: Text('Upload Images and Calculate Similarity'),
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _resetImages,
-              child: Text('Reset Images'),
-            ),
-          ],
+      body: SingleChildScrollView(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              _image1 == null
+                  ? const Text('No image selected for Image 1.')
+                  : Image.file(_image1!),
+              const SizedBox(height: 20),
+              _image2 == null
+                  ? const Text('No image selected for Image 2.')
+                  : Image.file(_image2!),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _uploadImages,
+                child: const Text('Upload Images and Calculate Similarity'),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _resetImages,
+                child: const Text('Reset Images'),
+              ),
+            ],
+          ),
         ),
       ),
       floatingActionButton: Column(
@@ -153,13 +159,13 @@ class _MyHomePageState extends State<MyHomePage> {
           FloatingActionButton(
             onPressed: () => _getImageFromGallery(ImageSource.gallery, 1),
             tooltip: 'Pick Image 1',
-            child: Icon(Icons.add_a_photo),
+            child: const Icon(Icons.add_a_photo),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           FloatingActionButton(
             onPressed: () => _getImageFromGallery(ImageSource.gallery, 2),
             tooltip: 'Pick Image 2',
-            child: Icon(Icons.add_a_photo),
+            child: const Icon(Icons.add_a_photo),
           ),
         ],
       ),
