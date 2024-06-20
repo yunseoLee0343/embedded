@@ -128,7 +128,8 @@ def process_images():
     else:
         similarity_response = {"error": "Not enough embeddings found."}
 
-    print(similarity_response)
+    print(similarity_response['Euclidean Distance'])
+    print(similarity_response['Cosine Similarity'])
 
     return jsonify(similarity_response)
 
