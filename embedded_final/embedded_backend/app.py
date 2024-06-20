@@ -5,7 +5,6 @@ import numpy as np
 from PIL import Image
 import io
 import base64
-
 import cv2
 from keras_facenet import FaceNet
 from scipy.spatial.distance import euclidean, cosine
@@ -23,7 +22,6 @@ embedder = FaceNet()
 # Temporary image paths
 temp_paths = image_paths[:2]
 
-
 # Face detection function using YOLO
 def detect_faces_yolo(model, image):
     results = model(image)
@@ -33,14 +31,12 @@ def detect_faces_yolo(model, image):
         detections = results.boxes.xyxy
     return detections
 
-
 # Image preprocessing function
 def preprocess_image(image):
     image = Image.open(io.BytesIO(image))
     image = image.convert('RGB')
     image = np.array(image)
     return image
-
 
 @app.route('/detect_faces', methods=['POST'])
 def detect_faces():
@@ -56,35 +52,48 @@ def detect_faces():
 
     return jsonify({"detections": detections})
 
-
 @app.route('/process_images', methods=['POST'])
 def process_images():
     embeddings = []
     detected_faces_info = []
 
+
     # Get JSON data from request body
     data = request.get_json()
 
     if 'image1' not in data or 'image2' not in data:
+        app.logger.error("Missing image1 or image2 in request data.")
         return jsonify({"error": "Please provide both image1 and image2 as Base64 encoded strings."}), 400
 
     # Decode Base64 images
     image1_base64 = data['image1']
     image2_base64 = data['image2']
 
-    image1 = base64.b64decode(image1_base64)
-    image2 = base64.b64decode(image2_base64)
+    try:
+        image1 = base64.b64decode(image1_base64)
+        image2 = base64.b64decode(image2_base64)
+    except Exception as e:
+        app.logger.error(f"Failed to decode images: {str(e)}")
+        return jsonify({"error": f"Failed to decode images: {str(e)}"}), 400
 
     # Preprocess and detect faces for image1
-    image1 = preprocess_image(image1)
-    detections1 = detect_faces_yolo(model, image1)
-    detections1 = detections1.numpy().tolist()
+    try:
+        image1 = preprocess_image(image1)
+        detections1 = detect_faces_yolo(model, image1)
+        detections1 = detections1.numpy().tolist()
+    except Exception as e:
+        app.logger.error(f"Failed to process image1: {str(e)}")
+        return jsonify({"error": f"Failed to process image1: {str(e)}"}), 400
 
     for detection in detections1:
         x1, y1, x2, y2 = map(int, detection[:4])
         face = image1[y1:y2, x1:x2]
 
         embedding = embedder.extract(face, threshold=0.95)
+        if not embedding:
+            app.logger.error("No embeddings found for face in image1.")
+            return jsonify({"error": "No embeddings found for face in image1."}), 400
+
         embeddings.append(embedding[0]['embedding'])
         detected_faces_info.append({
             'detection': detection,
@@ -94,15 +103,23 @@ def process_images():
         cv2.rectangle(image1, (x1, y1), (x2, y2), (255, 0, 0), 2)
 
     # Preprocess and detect faces for image2
-    image2 = preprocess_image(image2)
-    detections2 = detect_faces_yolo(model, image2)
-    detections2 = detections2.numpy().tolist()
+    try:
+        image2 = preprocess_image(image2)
+        detections2 = detect_faces_yolo(model, image2)
+        detections2 = detections2.numpy().tolist()
+    except Exception as e:
+        app.logger.error(f"Failed to process image2: {str(e)}")
+        return jsonify({"error": f"Failed to process image2: {str(e)}"}), 400
 
     for detection in detections2:
         x1, y1, x2, y2 = map(int, detection[:4])
         face = image2[y1:y2, x1:x2]
 
         embedding = embedder.extract(face, threshold=0.95)
+        if not embedding:
+            app.logger.error("No embeddings found for face in image2.")
+            return jsonify({"error": "No embeddings found for face in image2."}), 400
+
         embeddings.append(embedding[0]['embedding'])
         detected_faces_info.append({
             'detection': detection,
@@ -128,13 +145,10 @@ def process_images():
     else:
         similarity_response = {"error": "Not enough embeddings found."}
 
-    print(similarity_response['Euclidean Distance'])
-    print(similarity_response['Cosine Similarity'])
+    app.logger.info(f"Euclidean Distance: {similarity_response['Euclidean Distance']}")
+    app.logger.info(f"Cosine Similarity: {similarity_response['Cosine Similarity']}")
 
     return jsonify(similarity_response)
-
-
-
 @app.route('/show_images', methods=['GET'])
 def show_images():
     images = []
@@ -145,7 +159,6 @@ def show_images():
 
     return jsonify({"images": images})
 
-
 # Similarity calculation function
 def calculate_similarity(embedding1, embedding2, metric='euclidean'):
     if metric == 'euclidean':
@@ -154,7 +167,6 @@ def calculate_similarity(embedding1, embedding2, metric='euclidean'):
         return cosine(embedding1, embedding2)
     else:
         raise ValueError("Unsupported similarity metric. Use 'euclidean' or 'cosine'.")
-
 
 if __name__ == '__main__':
     app.run(debug=True)
