@@ -1,8 +1,6 @@
 
 # Face Recognition Flask & Flutter App
 
----
-
 ## Project Summary
 This project is a face recognition system with a Flask backend and a Flutter frontend. The Flask server uses YOLO for face detection and FaceNet for face embedding extraction. The Flutter app allows users to select an image from their gallery and upload it to the server. The server processes the image, detects faces, extracts embeddings, and calculates similarity. The similarity results are then displayed in the Flutter app.
 
