@@ -2,9 +2,9 @@ import os
 from flask import Flask, request, jsonify, send_file
 from ultralytics import YOLO
 import numpy as np
-import tensorflow as tf
 from PIL import Image
 import io
+import base64
 
 import cv2
 from keras_facenet import FaceNet
@@ -57,34 +57,61 @@ def detect_faces():
     return jsonify({"detections": detections})
 
 
-@app.route('/process_images', methods=['GET'])
+@app.route('/process_images', methods=['POST'])
 def process_images():
     embeddings = []
     detected_faces_info = []
 
-    for path in temp_paths:
-        image = cv2.imread(path)  # Load image
-        detections = detect_faces_yolo(model, image)  # Detect faces using YOLO
-        detections = detections.numpy().tolist()
+    # Get JSON data from request body
+    data = request.get_json()
 
-        # Draw bounding boxes and extract embeddings
-        for detection in detections:
-            x1, y1, x2, y2 = map(int, detection[:4])  # Convert coordinates to integers
-            face = image[y1:y2, x1:x2]  # Extract face region
+    if 'image1' not in data or 'image2' not in data:
+        return jsonify({"error": "Please provide both image1 and image2 as Base64 encoded strings."}), 400
 
-            # Extract face embeddings using FaceNet
-            embedding = embedder.extract(face, threshold=0.95)  # Use only the face region as input
-            embeddings.append(embedding[0]['embedding'])  # Store embedding vector
-            detected_faces_info.append({
-                'detection': detection,
-                'embedding': embedding[0]['embedding'].tolist()
-            })
+    # Decode Base64 images
+    image1_base64 = data['image1']
+    image2_base64 = data['image2']
 
-            # Draw bounding box on the image
-            cv2.rectangle(image, (x1, y1), (x2, y2), (255, 0, 0), 2)  # Red box
+    image1 = base64.b64decode(image1_base64)
+    image2 = base64.b64decode(image2_base64)
 
-        # Output detected bounding boxes
-        print(detections)
+    # Preprocess and detect faces for image1
+    image1 = preprocess_image(image1)
+    detections1 = detect_faces_yolo(model, image1)
+    detections1 = detections1.numpy().tolist()
+
+    for detection in detections1:
+        x1, y1, x2, y2 = map(int, detection[:4])
+        face = image1[y1:y2, x1:x2]
+
+        embedding = embedder.extract(face, threshold=0.95)
+        embeddings.append(embedding[0]['embedding'])
+        detected_faces_info.append({
+            'detection': detection,
+            'embedding': embedding[0]['embedding'].tolist()
+        })
+
+        cv2.rectangle(image1, (x1, y1), (x2, y2), (255, 0, 0), 2)
+
+    # Preprocess and detect faces for image2
+    image2 = preprocess_image(image2)
+    detections2 = detect_faces_yolo(model, image2)
+    detections2 = detections2.numpy().tolist()
+
+    for detection in detections2:
+        x1, y1, x2, y2 = map(int, detection[:4])
+        face = image2[y1:y2, x1:x2]
+
+        embedding = embedder.extract(face, threshold=0.95)
+        embeddings.append(embedding[0]['embedding'])
+        detected_faces_info.append({
+            'detection': detection,
+            'embedding': embedding[0]['embedding'].tolist()
+        })
+
+        cv2.rectangle(image2, (x1, y1), (x2, y2), (255, 0, 0), 2)
+
+    # Output detected bounding boxes for image1 and image2 (you can remove print(detections1) and print(detections2))
 
     # Output embedding vectors and calculate similarity between two images
     if len(embeddings) >= 2:
@@ -101,7 +128,10 @@ def process_images():
     else:
         similarity_response = {"error": "Not enough embeddings found."}
 
+    print(similarity_response)
+
     return jsonify(similarity_response)
+
 
 
 @app.route('/show_images', methods=['GET'])
